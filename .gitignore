@@ -3,6 +3,7 @@
 https://www.toptal.com/developers/gitignore?templates=macos,pycharm
 
 *.idea*
+*.csv
 
 ### macOS ###
 # General
