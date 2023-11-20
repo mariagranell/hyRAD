@@ -32,6 +32,7 @@ lifehistory <- read.csv("/Users/mariagranell/Repositories/data/life_history/tbl_
 # First I´ve noticed somethimes I don´t have a AnimalCode, since for this I just need an identifyer
 # when they don´t have a code I´ll put AnimalName without spaces.
 lh <- lifehistory %>% mutate(AnimalCode = ifelse(is.na(AnimalCode), str_replace(AnimalName, " ",""), AnimalCode))
+lh <- lh %>% mutate(AnimalName = ifelse(AnimalCode == "Nil", "Nile", AnimalName)) # Nil is Nile in full name
 
 # INDIVIDUALS ----------------
 # Firstly I am only going to select the individuals for which we have a BirthGroup, those are the ones for which we might
@@ -120,4 +121,49 @@ head(indv)
 tbl_parentage<- indv %>% left_join(ProbFathers, by = c("Year_born" = "Year", "Group_mb")) %>%
   dplyr::select(AnimalName, AnimalCode, Mother, FatherGenetics, PotentialFathers, DOB, DOB_estimate, Group_mb)
 
-write.csv(tbl_parentage, "/Users/mariagranell/Repositories/hyRAD/IVP_obs_parentage/tbl_obs_parentage.csv", row.names = F)
+#write.csv(tbl_parentage, "/Users/mariagranell/Repositories/hyRAD/IVP_obs_parentage/tbl_obs_parentage.csv", row.names = F)
+
+## CURIOSITY CHECK
+
+# FATHERS IN POTENTIAL FATHERS?
+
+ff <- tbl_parentage %>% filter(!is.na(FatherGenetics)) %>%
+  left_join(lh %>% dplyr::select(AnimalName, AnimalCode) %>% distinct(.)
+              %>% rename(FatherCode = AnimalCode),
+                 by = c("FatherGenetics" = "AnimalName"))
+
+# how many Father from Genetics we have that have no code
+nrow(ff %>% filter(!is.na(FatherGenetics) & is.na(FatherCode)))
+# 17 out of 75 individuals have a father with no code name.
+
+# who are they? two individuals. Sanbonani (no match) and Nile (probably Nil) # Nil-Nile corrected!
+print(ff %>% filter(!is.na(FatherGenetics) & is.na(FatherCode)) %>% distinct(FatherGenetics))
+
+# How many fathers appear in the potential fathers
+ff %>% mutate(poteualgen = ifelse(str_detect(PotentialFathers, FatherCode), "yes", "no")) %>%
+  group_by(poteualgen) %>% summarize( n = n())
+View(ff %>% mutate(poteualgen = ifelse(str_detect(PotentialFathers, FatherCode), "yes", "no")))
+# only two cases when the father was not named in the potential fathes. For Vin and Zink
+# Seems like for Vin, Voldemort was visiting LT before we spotted him. which make sense. LT is not very habituated
+# For Zink, Yst apparently never went to KB but he must have!
+
+# WHICH DATES MOST INDV WERE BORN
+# Mos individuals were born between Oct-Dec. If we assume 7 monts pregnancy, most conceptions happen March-May
+tbl_parentage %>% filter(!is.na(DOB)) %>%
+  mutate(birth = ymd(paste("2021", month(DOB), day(DOB), sep = "-")),
+                         conception =ymd(paste("2021", month(DOB) -7, day(DOB), sep = "-"))) %>%
+  pivot_longer(cols = c("birth", "conception"), names_to = "Event", values_to = "Dates") %>%
+   ggplot(aes(x = Dates, fill = Event)) + geom_histogram(binwidth = 1) +
+   coord_flip() +
+   scale_x_date(date_breaks = "1 month", date_labels = "%B")   # Set breaks and labels for each month
+
+
+# HOW MANY INDIVIDUALS DO WE WANT TO SEQUENCE
+# 155 Babies have been borned since 2021-01-01
+nrow(lh %>% filter(DOB_estimate > 2021-01-01, Tenure_type == "BirthGroup"))
+# 438 individuals have been part of the IVP since 2021-01-01
+nrow(lh %>% filter(EndDate_mb > 2021-01-01) %>% distinct(AnimalCode))
+
+
+
+
